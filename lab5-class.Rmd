@@ -26,14 +26,11 @@ First, let's calculate the unigram probabilities -- how often we see each word i
 
 ```{r}
 # Unigram is a single word level of a text
-
-
 unigram_probs <- incidents_df |> 
   unnest_tokens(word, Text) |> 
   anti_join(stop_words, by = "word") |> 
   count(word, sort = T) |> 
   mutate(p = n/sum(n)) #Probability of each word
-  
   
 ```
 
@@ -163,7 +160,6 @@ search_synonyms(word_vectors, snow_danger)
 ```
 
 ### Assignment
-
 #### Train Your Own Embeddings
 
 1.  Using the data from your Nexis Uni query from Week 2, create a set of word embeddings. To do this, you'll essentially need to recreate the steps in today's example down through the chunk named "pmi".
@@ -172,12 +168,10 @@ search_synonyms(word_vectors, snow_danger)
 
 3.  Assemble 3 word math equations that you think could be useful or interesting for exploring the meaning of key words or ideas in your data set.
 
-4.  Recreate the analyses in the last three chunks (find-synonyms, plot-synonyms, word-math) with the GloVe embeddings. How are they different from the embeddings created from the climbing accident data? Why do you think they are different?
-
 #### Pretrained Embeddings
 
-5.  Following the example in the SMLTR text (section 5.4), create a set of 100-dimensional GloVe word embeddings. These embeddings were trained by researchers at Stanford on 6 billion tokens from Wikipedia entries.
+4.  Following the example in the SMLTR text (section 5.4), create a set of 100-dimensional GloVe word embeddings. These embeddings were trained by researchers at Stanford on 6 billion tokens from Wikipedia entries.
 
-6.  Test them out with the cannonical word math equation on the GloVe embeddings: "berlin" - "germany" + "france" = ?
+5.  Test them out with the cannonical word math equation on the GloVe embeddings: "berlin" - "germany" + "france" = ?
 
-7.  Recreate parts 2 and 3 above using the the GloVe embeddings in place of the ones you trained. How do they compare? What are the implications for applications of these embeddings?
+6.  Recreate parts 2 and 3 above using the the GloVe embeddings in place of the ones you trained. How do they compare? What are the implications for applications of these embeddings?
