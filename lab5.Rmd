@@ -1,0 +1,53 @@
+---
+title: "Lab5"
+author: "Javier Patrón"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r packages, include = FALSE}
+library(tidytext)
+library(tidyverse)
+library(widyr)
+library(irlba) 
+library(broom) 
+library(textdata)
+library(ggplot2)
+library(dplyr)
+library(LexisNexisTools)
+```
+
+
+# Assignment #5
+## Train Your Own Embeddings
+
+1.  Using the data from your Nexis Uni query from Week 2, create a set of word embeddings. To do this, you'll essentially need to recreate the steps in today's example down through the chunk named "pmi".
+
+```{r}
+text <- readRDS(here::here("lab2_text")) |> 
+  janitor::clean_names()
+```
+
+#### a) Creating a data frame with all the words of interest, and calculate the unigram probabilities. 
+```{r}
+# Unigram is a single word level of a text
+unigram_probs <- text |> 
+  unnest_tokens(word, text) |> 
+  anti_join(stop_words, by = "word") |> # Delete words that are not useful
+  count(word, sort = T) |> 
+  mutate(p = n/sum(n)) #Probability of each word
+
+```
+
+
+2.  Think of 3-5 key words in your data set. Calculate and plot the 10 most semantically similar words for each of them. Identify and interpret any interesting or surprising results.
+
+3.  Assemble 3 word math equations that you think could be useful or interesting for exploring the meaning of key words or ideas in your data set.
+
+#### Pretrained Embeddings
+
+4.  Following the example in the SMLTR text (section 5.4), create a set of 100-dimensional GloVe word embeddings. These embeddings were trained by researchers at Stanford on 6 billion tokens from Wikipedia entries.
+
+5.  Test them out with the cannonical word math equation on the GloVe embeddings: "berlin" - "germany" + "france" = ?
+
+6.  Recreate parts 2 and 3 above using the the GloVe embeddings in place of the ones you trained. How do they compare? What are the implications for applications of these embeddings?

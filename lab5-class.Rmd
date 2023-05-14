@@ -1,6 +1,6 @@
 ---
 title: "Lab5"
-author: "Javier"
+author: "Javier Patrón"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -28,7 +28,7 @@ First, let's calculate the unigram probabilities -- how often we see each word i
 # Unigram is a single word level of a text
 unigram_probs <- incidents_df |> 
   unnest_tokens(word, Text) |> 
-  anti_join(stop_words, by = "word") |> 
+  anti_join(stop_words, by = "word") |> # Delete words that are not useful
   count(word, sort = T) |> 
   mutate(p = n/sum(n)) #Probability of each word
   
@@ -36,7 +36,7 @@ unigram_probs <- incidents_df |>
 
 OK, so that tells us the probability of each word.
 
-Next, we need to know how often we find each word near each other word -- the skipgram probabilities. In this case we'll define the word context as a five-word window. We'll slide that window across all of our text and record which words occurr together within that window.
+Next, we need to know how often we find each word near each other word -- the skipgram probabilities. In this case we'll define the word context as a five-word window. We'll slide that window across all of our text and record which words occur together within that window.
 
 Now let's write some code that adds an ngramID column that contains constituent information about each 5-gram we constructed by sliding our window.
 
@@ -51,7 +51,7 @@ skipgrams <- incidents_df |>
 
 ```
 
-Now we use widyr::pairwise_count() to sum the total \# of occurences of each pair of words.
+Now we use widyr::pairwise_count() to sum the total \# of occurrences of each pair of words.
 
 ```{r pairwise_count}
 #calculate probabilities
