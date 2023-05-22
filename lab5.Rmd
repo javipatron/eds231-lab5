@@ -15,8 +15,8 @@ library(textdata)
 library(ggplot2)
 library(dplyr)
 library(LexisNexisTools)
-```
 
+```
 
 # Assignment #5
 ## Train Your Own Embeddings
@@ -24,30 +24,203 @@ library(LexisNexisTools)
 1.  Using the data from your Nexis Uni query from Week 2, create a set of word embeddings. To do this, you'll essentially need to recreate the steps in today's example down through the chunk named "pmi".
 
 ```{r}
-text <- readRDS(here::here("lab2_text")) |> 
+assignment_text <- readRDS(here::here("lab2_text")) |> 
   janitor::clean_names()
+
+assignment_text$text <- gsub("[[:digit:]]", "", assignment_text$text)
+
 ```
 
 #### a) Creating a data frame with all the words of interest, and calculate the unigram probabilities. 
 ```{r}
 # Unigram is a single word level of a text
-unigram_probs <- text |> 
+text_probs <- assignment_text |> 
   unnest_tokens(word, text) |> 
   anti_join(stop_words, by = "word") |> # Delete words that are not useful
   count(word, sort = T) |> 
   mutate(p = n/sum(n)) #Probability of each word
 
+
 ```
 
+Now let's write some code that adds an ngram ID column that contains constituent information about each 5-gram we constructed by sliding our window.
+
+```{r}
+skipgrams <- assignment_text |> 
+  unnest_tokens(ngram, text, token = "ngrams", n = 5) |> 
+  mutate(ngramID = row_number()) |> 
+  tidyr::unite(skipgramID, id, ngramID) |> 
+  unnest_tokens(word, ngram) |> 
+  anti_join(stop_words, by = "word")
+```
+
+Now we use widyr::pairwise_count() to sum the total \# of occurrences of each pair of words.
+
+```{r}
+#calculate probabilities
+skipgram_probs <- skipgrams |> 
+  pairwise_count(word, skipgramID, diag = T, sort = T) |> 
+  mutate(p = n/sum(n))
+```
+
+The next step is to normalize these probabilities, that is, to calculate how often words occur together within a window, relative to their total occurrences in the data.
+
+```{r}
+normalized_prob <- skipgram_probs |> 
+  filter(n > 20) |> 
+  rename(word1 = item1,
+         word2 = item2) |> 
+  left_join(text_probs |> 
+              select(word1 = word, p1 = p),
+            by = "word1") |> 
+  left_join(text_probs |> 
+              select(word2 = word, p2 = p), by = "word2") |> 
+  mutate(p_together = p/p1/p2)
+
+```
+
+Now we have all the pieces to calculate the point-wise mutual information (PMI) measure. It's the logarithm of the normalized probability of finding two words together. PMI tells us which words occur together more often than expected based on how often they occurred on their own.
+
+Then we convert to a matrix so we can use matrix factorization and reduce the dimensionality of the data.
+
+```{r}
+
+pmi_matrix <- normalized_prob |> 
+  mutate(pmi = log10(p_together)) |> 
+  cast_sparse(word1, word2, pmi)
+
+```
+
+We do the singular value decomposition with irlba::irlba(). It's a "partial decomposition" as we are specifying a limited number of dimensions, in this case 100.
+
+```{r}
+
+pmi_matrix@x[is.na(pmi_matrix@x)] <- 0
+pmi_svd <- irlba(pmi_matrix, 100, maxit = 500)
+word_vectors <- pmi_svd$u
+
+rownames(word_vectors) <- rownames(pmi_matrix)
+
+```
+
+These vectors in the "u" matrix are contain "left singular values". They are orthogonal vectors that create a 100-dimensional semantic space where we can locate each word. The distance between words in this space gives an estimate of their semantic similarity.
+
+Here's a function written by Julia Silge for matching the most similar vectors to a given vector.
+
+```{r}
+search_synonyms <- function(word_vectors, selected_vector) {
+dat <- word_vectors %*% selected_vector
+    
+similarities <- dat %>%
+        tibble(token = rownames(dat), similarity = dat[,1])
+
+similarities %>%
+       arrange(-similarity) %>%
+        select(c(2,3))
+}
+```
+
+Let's test it out!
+
+```{r}
+word_carbon <- search_synonyms(word_vectors, word_vectors["carbon", ])
+word_blue <- search_synonyms(word_vectors, word_vectors["blue", ])
+word_economy <- search_synonyms(word_vectors, word_vectors["economy", ])
+```
 
 2.  Think of 3-5 key words in your data set. Calculate and plot the 10 most semantically similar words for each of them. Identify and interpret any interesting or surprising results.
 
+```{r}
+word_blue %>%
+    mutate(selected = "blue") %>%
+    bind_rows(word_carbon %>%
+                  mutate(selected = "carbon")) %>%
+    group_by(selected) %>%
+    top_n(15, similarity) %>%
+    ungroup %>%
+    mutate(token = reorder(token, similarity)) %>%
+    ggplot(aes(token, similarity, fill = selected)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~selected, scales = "free") +
+    coord_flip() +
+    theme(strip.text=element_text(hjust=0, size=12)) +
+    scale_y_continuous(expand = c(0,0)) +
+    labs(x = NULL, title = "What word vectors are most similar to blue or carbon")
+  
+```
+
 3.  Assemble 3 word math equations that you think could be useful or interesting for exploring the meaning of key words or ideas in your data set.
+
+```{r }
+
+math_mangrove <- word_vectors["blue",] - word_vectors["carbon",] + word_vectors["education",] + word_vectors["mangrove",]
+ucsb_final <- search_synonyms(word_vectors, math_mangrove)
+
+```
+
 
 #### Pretrained Embeddings
 
 4.  Following the example in the SMLTR text (section 5.4), create a set of 100-dimensional GloVe word embeddings. These embeddings were trained by researchers at Stanford on 6 billion tokens from Wikipedia entries.
 
+
+```{r}
+#glove6b <- embedding_glove6b(dimensions = 100,
+                 # options(timeout = 1000))
+
+
+#write_csv(glove6b, here::here("glove6b_matrix"))
+
+glove6b <- read_csv(here::here("glove6b_matrix"))
+
+matrix <- as.matrix(glove6b)
+matrix_numeric <- apply(matrix, 2, as.numeric)
+rownames(matrix_numeric) <- matrix[, 1]
+matrix_numeric <- matrix_numeric[,-1]
+
+
+```
+
+
 5.  Test them out with the cannonical word math equation on the GloVe embeddings: "berlin" - "germany" + "france" = ?
 
+```{r}
+words_collision <- matrix_numeric["berlin",] - matrix_numeric["germany",] + matrix_numeric["france",]
+search_synonyms(matrix_numeric, words_collision)
+```
+
 6.  Recreate parts 2 and 3 above using the the GloVe embeddings in place of the ones you trained. How do they compare? What are the implications for applications of these embeddings?
+
+```{r}
+
+glove_education <- matrix_numeric["blue",] - matrix_numeric["carbon",] + matrix_numeric["education",] + matrix_numeric["mangrove",]
+
+glove_final <- search_synonyms(matrix_numeric, glove_education)
+
+```
+
+
+```{r}
+glove_final %>%
+    mutate(selected = "education + mangrove ") %>%
+    bind_rows(ucsb_final %>%
+                  mutate(selected = "education + mangrove")) %>%
+    group_by(selected) %>%
+    top_n(15, similarity) %>%
+    ungroup %>%
+    mutate(token = reorder(token, similarity)) %>%
+    ggplot(aes(token, similarity, fill = selected)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~selected, scales = "free") +
+    coord_flip() +
+    theme(strip.text = element_text(hjust=0, size=12)) +
+    scale_y_continuous(expand = c(0,0)) +
+    labs(x = NULL, 
+         title = "Difference in word relationship between UCSB and GloVe ")
+  
+```
+
+Based on the graph, it is evident that there is a stronger word relationship with the Glove Data set in relation to education words (shown in blue) compared to the UCSB blue carbon-related articles (shown in red). The graph demonstrates that when the "education" word is included in the `search_synonyms` function, there are numerous other words that exhibit a high level of association with that math equation, as opposed to the comparison graph in blue. In the comparison graph, there are only a few words related to education, but they primarily pertain to mangroves.
+
+
+

@@ -41,14 +41,12 @@ Next, we need to know how often we find each word near each other word -- the sk
 Now let's write some code that adds an ngramID column that contains constituent information about each 5-gram we constructed by sliding our window.
 
 ```{r make-skipgrams}
-
 skipgrams <- incidents_df |> 
   unnest_tokens(ngram, Text, token = "ngrams", n = 5) |> 
   mutate(ngramID = row_number()) |> 
   tidyr::unite(skipgramID, ID, ngramID) |> 
   unnest_tokens(word, ngram) |> 
   anti_join(stop_words, by = "word")
-
 ```
 
 Now we use widyr::pairwise_count() to sum the total \# of occurrences of each pair of words.
